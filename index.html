@@ -258,12 +258,11 @@ html, body {
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  color: #fff1a8;
-  -webkit-text-stroke: 0.35px rgba(45, 15, 0, 0.75);
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.9),
-    0 0 7px rgba(255, 214, 120, 0.72),
-    0 0 16px rgba(255, 174, 120, 0.34);
+  background: linear-gradient(135deg, #ffe8d0 0%, #ffd8c0 30%, #ffd0c8 60%, #ffd8d0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 10px rgba(255,180,140,0.4)) drop-shadow(0 0 22px rgba(255,140,160,0.2));
 }
 #jokeText.visible {
   opacity: 1;
@@ -453,6 +452,7 @@ const ctx = canvas.getContext('2d');
 let W, H;
 let DPR = 1;
 let started = false;
+let introReadyToStart = false;
 let musicVolume = 0.4; // 音乐音量 0~1
 let audioCtx = null;
 let bgmAudio = null; // 背景音乐 <audio> 元素
@@ -1992,7 +1992,10 @@ function playIntroAnimation() {
     text2.classList.remove('visible');
     text2.classList.add('fadeout');
   }, 7000);
-  setTimeout(() => { startBtn.classList.add('visible'); }, 7800);
+  setTimeout(() => {
+    startBtn.classList.add('visible');
+    introReadyToStart = true;
+  }, 7800);
 }
 playIntroAnimation();
 
@@ -2001,6 +2004,7 @@ playIntroAnimation();
 // ============================================================
 function startShow() {
   if (started) return;
+  if (!introReadyToStart) return;
   started = true;
 
   document.getElementById('introOverlay').classList.add('hidden');
