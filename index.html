@@ -247,22 +247,25 @@ html, body {
 #jokeText {
   position: fixed;
   z-index: 15;
-  max-width: 280px;
-  padding: 0;
+  max-width: min(86vw, 320px);
+  padding: 10px 14px;
   font-size: clamp(13px, 3.2vw, 16px);
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: 1.5px;
-  line-height: 1.9;
+  line-height: 1.65;
   text-align: center;
   pointer-events: none;
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(135deg, #ffe8d0 0%, #ffd8e8 40%, #ffe0d0 70%, #ffd0e0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 10px rgba(255,180,160,0.35)) drop-shadow(0 0 20px rgba(255,140,180,0.2));
+  color: #fff7df;
+  background: rgba(10, 3, 24, 0.74);
+  border: 1px solid rgba(255, 230, 180, 0.32);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 216, 160, 0.16);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 8px rgba(255, 226, 170, 0.38);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 #jokeText.visible {
   opacity: 1;
@@ -351,6 +354,62 @@ html, body {
   0%, 100% { box-shadow: 0 0 30px rgba(255,230,180,0.3), 0 0 60px rgba(255,210,150,0.15); }
   50% { box-shadow: 0 0 40px rgba(255,230,180,0.4), 0 0 80px rgba(255,210,150,0.2); }
 }
+
+@media (max-width: 700px), (pointer: coarse) {
+  html, body {
+    touch-action: none;
+  }
+
+  .intro-text {
+    max-width: 92vw;
+    white-space: normal;
+    letter-spacing: 3px;
+    line-height: 1.5;
+  }
+
+  #startBtn {
+    bottom: calc(18% + env(safe-area-inset-bottom));
+    width: min(86vw, 360px);
+    padding: 14px 18px;
+    letter-spacing: 2px;
+    line-height: 1.5;
+  }
+
+  #volumeControl {
+    top: calc(12px + env(safe-area-inset-top));
+    right: 12px;
+    padding: 5px 9px 5px 6px;
+  }
+
+  #volSlider {
+    width: 48px;
+  }
+
+  #dateLabel {
+    right: 14px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .wish-text {
+    font-size: clamp(13px, 4vw, 17px);
+    letter-spacing: 2px;
+  }
+
+  #meteorHint {
+    width: 92vw;
+    letter-spacing: 3px;
+  }
+
+  #loveQuote {
+    bottom: calc(13% + env(safe-area-inset-bottom));
+    max-width: 92%;
+    font-size: clamp(14px, 4.4vw, 19px);
+    letter-spacing: 2px;
+    line-height: 1.8;
+  }
+}
 </style>
 </head>
 <body>
@@ -394,6 +453,7 @@ html, body {
 const canvas = document.getElementById('fireworkCanvas');
 const ctx = canvas.getContext('2d');
 let W, H;
+let DPR = 1;
 let started = false;
 let musicVolume = 0.4; // 音乐音量 0~1
 let audioCtx = null;
@@ -420,6 +480,7 @@ let meteorModePhase = 'normal';   // 'normal' | 'fading_out' | 'meteor_hint' | '
 let meteorPhaseTimer = 0;
 let wishElements = [];            // 愿望文字DOM元素
 let wishSpawnAccum = 0;           // 愿望生成帧计时器
+let meteorSpawnAccum = 0;         // 流星生成计时器
 
 // 情话系统
 let loveQuoteIndex = 0;
@@ -444,6 +505,15 @@ let auroraPhase = 0;
 // 风力（轻微随机漂移）
 let windX = 0;
 let windTarget = 0;
+
+function isMobileViewport() {
+  return Math.min(window.innerWidth, window.innerHeight) <= 700 ||
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+
+function performanceScale() {
+  return isMobileViewport() ? 0.62 : 1;
+}
 
 // ============================================================
 //  情话数组（45句，温柔真挚）
@@ -639,17 +709,27 @@ loveQuoteShuffled = shuffle(loveQuotes);
 //  画布尺寸适配
 // ============================================================
 function resizeCanvas() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  DPR = Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1.5 : 2);
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
 
 // ============================================================
 //  工具函数
 // ============================================================
 function rand(min, max) { return Math.random() * (max - min) + min; }
 function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+function scaledCount(min, max) {
+  return Math.max(1, Math.round(randInt(min, max) * performanceScale()));
+}
 
 // 精心调配的浪漫色系
 function romanticColor() {
@@ -713,13 +793,20 @@ createStars();
 class ShootingStar {
   constructor(meteorRain) { this.reset(meteorRain); }
   reset(meteorRain) {
-    this.x = rand(W * 0.05, W * 0.95);
-    this.y = rand(-20, H * 0.15);
-    this.len = meteorRain ? rand(100, 220) : rand(80, 180);
-    this.speed = meteorRain ? rand(6, 12) : rand(10, 18);
-    this.angle = rand(0.35, 0.9);
+    const mobile = isMobileViewport();
+    if (meteorRain) {
+      this.x = rand(-W * 0.35, W * 1.05);
+      this.y = rand(-H * 0.08, H * (mobile ? 0.58 : 0.42));
+    } else {
+      this.x = rand(W * 0.05, W * 0.95);
+      this.y = rand(-20, H * 0.2);
+    }
+    const baseLen = Math.min(W, H);
+    this.len = meteorRain ? rand(baseLen * 0.28, baseLen * (mobile ? 0.62 : 0.52)) : rand(80, 180);
+    this.speed = meteorRain ? rand(mobile ? 5.5 : 6.5, mobile ? 10 : 12) : rand(10, 18);
+    this.angle = meteorRain ? rand(0.45, 1.02) : rand(0.35, 0.9);
     this.life = 1;
-    this.decay = meteorRain ? rand(0.004, 0.009) : rand(0.008, 0.02);
+    this.decay = meteorRain ? rand(mobile ? 0.0035 : 0.004, mobile ? 0.007 : 0.009) : rand(0.008, 0.02);
     this.active = true;
     this.meteorRain = !!meteorRain;
     // 流星雨模式下使用彩色流星
@@ -736,7 +823,7 @@ class ShootingStar {
       const cs = colorSets[randInt(0, colorSets.length - 1)];
       this.headRgb = cs.head;
       this.tailRgb = cs.tail;
-      this.width = rand(2, 4);
+      this.width = rand(mobile ? 1.5 : 2, mobile ? 3 : 4);
     } else {
       this.headRgb = [255, 245, 230];
       this.tailRgb = [255, 200, 180];
@@ -1095,8 +1182,20 @@ function enterMeteorMode() {
   meteorModePhase = 'fading_out';
   meteorPhaseTimer = 0;
   wishSpawnAccum = 0;
+  meteorSpawnAccum = 0;
   // 隐藏当前情话
   loveQuoteEl.classList.remove('visible');
+}
+
+function spawnMeteorRain(dt, intensity = 1) {
+  const mobile = isMobileViewport();
+  const interval = mobile ? 95 : 58;
+  const maxActive = mobile ? 58 : 105;
+  meteorSpawnAccum += dt * intensity;
+  while (meteorSpawnAccum >= interval && shootingStars.length < maxActive) {
+    shootingStars.push(new ShootingStar(true));
+    meteorSpawnAccum -= interval;
+  }
 }
 
 // 流星雨模式更新（在主循环中调用）
@@ -1116,12 +1215,7 @@ function updateMeteorMode(dt) {
   } else if (meteorModePhase === 'meteor_hint') {
     // 提示文字阶段：只显示"闭上眼许个愿"，等它消失后再出愿望
     // 流星已经开始密集
-    if (Math.random() < 0.4) {
-      const count = randInt(1, 2);
-      for (let i = 0; i < count; i++) {
-        shootingStars.push(new ShootingStar(true));
-      }
-    }
+    spawnMeteorRain(dt, 0.85);
     meteorGlowOpacity = Math.min(0.12, meteorGlowOpacity + 0.00005 * dt);
     // 提示显示4秒后淡出，再等1.5秒淡出完成后进入愿望阶段
     if (meteorPhaseTimer > 5500) {
@@ -1136,13 +1230,7 @@ function updateMeteorMode(dt) {
     }
   } else if (meteorModePhase === 'meteor_wish') {
     // 流星雨+愿望阶段
-    // 每帧40%概率生成1-2颗流星
-    if (Math.random() < 0.4) {
-      const count = randInt(1, 2);
-      for (let i = 0; i < count; i++) {
-        shootingStars.push(new ShootingStar(true));
-      }
-    }
+    spawnMeteorRain(dt, 1);
     // 天空光晕渐强
     meteorGlowOpacity = Math.min(0.12, meteorGlowOpacity + 0.00005 * dt);
     // 帧计时器生成愿望（每2秒一个）
@@ -1530,7 +1618,7 @@ class Firework {
 
   // 经典圆形爆炸（更饱满）
   explodeClassic(x, y, color) {
-    const count = randInt(80, 130);
+    const count = scaledCount(80, 130);
     for (let i = 0; i < count; i++) {
       const angle = rand(0, Math.PI * 2);
       const speed = rand(1, 5.5);
@@ -1544,7 +1632,7 @@ class Firework {
 
   // 柳叶拖尾（更柔美）
   explodeWillow(x, y, color) {
-    const count = randInt(50, 80);
+    const count = scaledCount(50, 80);
     for (let i = 0; i < count; i++) {
       const angle = rand(0, Math.PI * 2);
       const speed = rand(2, 7);
@@ -1559,7 +1647,7 @@ class Firework {
 
   // 噼啪闪烁
   explodeCrackle(x, y, color) {
-    const count = randInt(100, 160);
+    const count = scaledCount(100, 160);
     for (let i = 0; i < count; i++) {
       const angle = rand(0, Math.PI * 2);
       const speed = rand(1, 4.5);
@@ -1574,7 +1662,7 @@ class Firework {
 
   // 环形
   explodeRing(x, y, color) {
-    const count = 60;
+    const count = Math.round(60 * performanceScale());
     const radius = rand(3.5, 5.5);
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 / count) * i;
@@ -1592,10 +1680,11 @@ class Firework {
     const color2 = romanticColor();
     for (let ring = 0; ring < 2; ring++) {
       const count = 55;
+      const scaledRingCount = Math.round(count * performanceScale());
       const radius = ring === 0 ? rand(3, 4.5) : rand(5.5, 7.5);
       const c = ring === 0 ? color : color2;
-      for (let i = 0; i < count; i++) {
-        const angle = (Math.PI * 2 / count) * i;
+      for (let i = 0; i < scaledRingCount; i++) {
+        const angle = (Math.PI * 2 / scaledRingCount) * i;
         particles.push(new Particle(x, y, c,
           Math.cos(angle) * radius,
           Math.sin(angle) * radius,
@@ -1608,7 +1697,7 @@ class Firework {
 
   // 大菊花状（更密更美）
   explodeChrysanthemum(x, y, color) {
-    const arms = randInt(16, 24);
+    const arms = Math.max(12, Math.round(randInt(16, 24) * performanceScale()));
     for (let a = 0; a < arms; a++) {
       const baseAngle = (Math.PI * 2 / arms) * a;
       for (let j = 0; j < 15; j++) {
@@ -1627,7 +1716,7 @@ class Firework {
   // 渐变彩球
   explodeGradient(x, y, color) {
     const colors = [romanticColor(), romanticColor(), romanticColor()];
-    const count = randInt(90, 130);
+    const count = scaledCount(90, 130);
     for (let i = 0; i < count; i++) {
       const angle = rand(0, Math.PI * 2);
       const speed = rand(1, 5.5);
@@ -1651,7 +1740,8 @@ class Firework {
     const outlineColors = ['#ff88bb', '#ff99cc', '#ffaad0', '#ffbbd8', '#ffcce0'];
 
     // 第一层：填充内部（高密度粒子，均匀分布）
-    for (let i = 0; i < 280; i++) {
+    const fillCount = Math.round(280 * performanceScale());
+    for (let i = 0; i < fillCount; i++) {
       const t = rand(0, Math.PI * 2);
       const hx = 16 * Math.pow(Math.sin(t), 3);
       const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
@@ -1669,7 +1759,7 @@ class Firework {
     }
 
     // 第二层：明亮轮廓（更亮的粒子勾勒心形边缘）
-    const outlineCount = 160;
+    const outlineCount = Math.round(160 * performanceScale());
     for (let i = 0; i < outlineCount; i++) {
       const t = (Math.PI * 2 / outlineCount) * i;
       const hx = 16 * Math.pow(Math.sin(t), 3);
@@ -1687,7 +1777,8 @@ class Firework {
     }
 
     // 第三层：外围柔光（低透明度大粒子，营造氛围）
-    for (let i = 0; i < 50; i++) {
+    const glowCount = Math.round(50 * performanceScale());
+    for (let i = 0; i < glowCount; i++) {
       const t = rand(0, Math.PI * 2);
       const hx = 16 * Math.pow(Math.sin(t), 3);
       const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
@@ -1703,7 +1794,8 @@ class Firework {
     }
 
     // 中心白色闪光粒子（短暂，不影响心形颜色）
-    for (let i = 0; i < 25; i++) {
+    const flashCount = Math.round(25 * performanceScale());
+    for (let i = 0; i < flashCount; i++) {
       const angle = rand(0, Math.PI * 2);
       const speed = rand(0.5, 2);
       particles.push(new Particle(x, y, '#ffffff',
@@ -1719,26 +1811,36 @@ class Firework {
 
   // 文字烟花（高清版：正常混合+纯色粒子+清晰文字）
   explodeText(x, y, color, text) {
+    const mobile = isMobileViewport();
+    const displayText = text.replace('❤️', '❤');
     const offCanvas = document.createElement('canvas');
     const offCtx = offCanvas.getContext('2d');
-    // 大字号，让文字更大更清晰
-    const fontSize = Math.min(120, W * 0.22);
-    offCanvas.width = Math.ceil(fontSize * text.length * 1.4);
+    const fontFamily = '"STKaiti", "KaiTi", "PingFang SC", "Microsoft YaHei", sans-serif';
+    const maxTextWidth = W * (mobile ? 0.82 : 0.9);
+    let fontSize = Math.min(mobile ? 72 : 120, W * (mobile ? 0.2 : 0.22));
+    offCtx.font = `bold ${fontSize}px ${fontFamily}`;
+    const measured = offCtx.measureText(displayText).width;
+    if (measured > maxTextWidth) {
+      fontSize = Math.max(mobile ? 46 : 64, fontSize * maxTextWidth / measured);
+    }
+    offCtx.font = `bold ${fontSize}px ${fontFamily}`;
+    const finalMeasured = offCtx.measureText(displayText).width;
+    offCanvas.width = Math.ceil(Math.min(maxTextWidth + fontSize * 0.25, finalMeasured + fontSize * 0.45));
     offCanvas.height = Math.ceil(fontSize * 1.8);
     // 描边+填充，增加像素覆盖面积
     offCtx.fillStyle = '#fff';
     offCtx.strokeStyle = '#fff';
-    offCtx.lineWidth = 3;
-    offCtx.font = `bold ${fontSize}px "STKaiti", "KaiTi", "PingFang SC", "Microsoft YaHei", sans-serif`;
+    offCtx.lineWidth = mobile ? 4 : 3;
+    offCtx.font = `bold ${fontSize}px ${fontFamily}`;
     offCtx.textAlign = 'center';
     offCtx.textBaseline = 'middle';
-    offCtx.strokeText(text, offCanvas.width / 2, offCanvas.height / 2);
-    offCtx.fillText(text, offCanvas.width / 2, offCanvas.height / 2);
+    offCtx.strokeText(displayText, offCanvas.width / 2, offCanvas.height / 2);
+    offCtx.fillText(displayText, offCanvas.width / 2, offCanvas.height / 2);
 
     const imageData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
     const positions = [];
-    // 密采样间距
-    const gap = 2;
+    // 移动端减少采样密度，保持字形清楚且不拖帧
+    const gap = mobile ? 3 : 2;
     for (let py = 0; py < offCanvas.height; py += gap) {
       for (let px = 0; px < offCanvas.width; px += gap) {
         const idx = (py * offCanvas.width + px) * 4;
@@ -1751,7 +1853,7 @@ class Firework {
       }
     }
 
-    const maxParticles = Math.min(positions.length, 600);
+    const maxParticles = Math.min(positions.length, mobile ? 300 : 600);
     const step = Math.max(1, Math.floor(positions.length / maxParticles));
     // 文字颜色：饱和暖金+琥珀色，不用白色避免糊成一片
     const textColors = ['#ffd700', '#ffcc00', '#ffb800', '#ffa500', '#ffe066', '#ffc040'];
@@ -1764,21 +1866,22 @@ class Firework {
         Math.cos(angle) * speed,
         Math.sin(angle) * speed,
         { gravity: 0.003, friction: 0.95, decay: rand(0.001, 0.004),
-          trail: true, trailLength: 5, size: rand(2.5, 4), glow: true,
-          phase: 'move', targetX: pos.x, targetY: pos.y, stayTime: 180, shimmer: true,
+          trail: !mobile, trailLength: mobile ? 3 : 5, size: rand(mobile ? 3 : 2.5, mobile ? 4.4 : 4), glow: true,
+          phase: 'move', targetX: pos.x, targetY: pos.y, stayTime: mobile ? 140 : 180, shimmer: !mobile,
           normalBlend: true }
       ));
     }
 
     // 文字柔光层（少量大粒子，低透明度）
-    for (let i = 0; i < Math.min(positions.length, 80); i += step * 4) {
+    const glowSamples = mobile ? 24 : 80;
+    for (let i = 0; i < Math.min(positions.length, glowSamples); i += step * (mobile ? 6 : 4)) {
       const pos = positions[i];
       if (!pos) break;
       particles.push(new Particle(x, y, '#ffcc44',
         rand(-1, 1), rand(-1, 1),
         { gravity: 0.002, friction: 0.95, decay: rand(0.002, 0.005),
-          trail: false, size: rand(4, 6), glow: true,
-          phase: 'move', targetX: pos.x, targetY: pos.y, stayTime: 150, shimmer: true,
+          trail: false, size: rand(mobile ? 3.5 : 4, mobile ? 5 : 6), glow: true,
+          phase: 'move', targetX: pos.x, targetY: pos.y, stayTime: mobile ? 120 : 150, shimmer: !mobile,
           normalBlend: true }
       ));
     }
@@ -1815,9 +1918,9 @@ function launchHeartFirework() {
 }
 
 function launchTextFirework() {
-  const texts = ['小鱼儿', '老婆❤️', '小鱼儿', '老婆'];
+  const texts = ['小鱼儿', '老婆', '小鱼儿', '老婆'];
   const text = texts[randInt(0, texts.length - 1)];
-  fireworks.push(new Firework(rand(W * 0.3, W * 0.7), H, W / 2, rand(H * 0.18, H * 0.32), {
+  fireworks.push(new Firework(rand(W * 0.3, W * 0.7), H, W / 2, rand(H * 0.2, H * (isMobileViewport() ? 0.3 : 0.32)), {
     color: '#ffd700',
     type: 'text',
     text
@@ -1982,7 +2085,7 @@ canvas.addEventListener('touchstart', (e) => {
 function launchClickFirework(x, y) {
   const color = romanticColor();
   flashes.push(new Flash(x, y, color));
-  const count = randInt(35, 55);
+  const count = randInt(isMobileViewport() ? 26 : 35, isMobileViewport() ? 40 : 55);
   for (let i = 0; i < count; i++) {
     const angle = rand(0, Math.PI * 2);
     const speed = rand(1, 4);
@@ -2002,14 +2105,15 @@ function showJokeBubble(px, py) {
   el.textContent = joke;
 
   // 定位：在点击位置上方
-  const bw = 280;
-  const bh = 80;
+  const bw = Math.min(320, W * 0.86);
+  const bh = isMobileViewport() ? 120 : 90;
   let left = px - bw / 2;
   let top = py - bh - 30;
   // 边界修正
   if (left < 10) left = 10;
   if (left + bw > W - 10) left = W - bw - 10;
   if (top < 10) top = py + 30;
+  if (top + bh > H - 10) top = Math.max(10, H - bh - 10);
 
   el.style.left = left + 'px';
   el.style.top = top + 'px';
@@ -2137,9 +2241,10 @@ function mainLoop(timestamp) {
   // 自动发射烟花（流星雨期间不发射）
   if (meteorModePhase === 'normal' || meteorModePhase === 'fading_in') {
     autoFireworkTimer += dt;
-    if (autoFireworkTimer > rand(500, 1300)) {
+    const fireworkIntervalScale = isMobileViewport() ? 1.55 : 1;
+    if (autoFireworkTimer > rand(500, 1300) * fireworkIntervalScale) {
       launchFirework();
-      if (Math.random() < 0.35) {
+      if (Math.random() < (isMobileViewport() ? 0.18 : 0.35)) {
         setTimeout(() => launchFirework(), rand(80, 250));
       }
       autoFireworkTimer = 0;
@@ -2194,8 +2299,9 @@ function mainLoop(timestamp) {
   ctx.globalCompositeOperation = 'source-over';
 
   // 粒子数量限制
-  if (particles.length > 6000) {
-    particles.splice(0, particles.length - 6000);
+  const particleLimit = isMobileViewport() ? 3200 : 6000;
+  if (particles.length > particleLimit) {
+    particles.splice(0, particles.length - particleLimit);
   }
 
   requestAnimationFrame(mainLoop);
